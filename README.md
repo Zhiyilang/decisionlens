@@ -1,69 +1,77 @@
-# DecisionLens 🔎 — 溯源决策智能体
+# DecisionLens — An Offline Multi-Source Evidence-Reasoning Agent
 
-一个**离线的多源证据推理智能体**。给它多个数据源（CSV）和一个问题，它会：
-跨源连接 → 检索证据 → 推理（趋势/排名/断货风险）→ 给出**带证据引用**的结论和**可执行的下一步行动**。
+DecisionLens is an **offline, multi-source evidence-reasoning agent**. Give it several data sources (CSV files) and a question, and it will: join across sources → retrieve evidence → reason (trends, rankings, stockout risk) → deliver an **evidence-cited conclusion** plus a **concrete next action**.
 
-关键差异：**每个结论都标注它依据哪个文件的哪几行**（可解释、可复核），而不是甩一个黑箱答案。纯标准库、**零依赖、100% 离线**——商业数据不出本机。
+The key differentiator: **every claim is annotated with the exact file and rows it is based on** (explainable and auditable), instead of a black-box answer. Pure Python standard library — **zero dependencies, 100% offline**. Your business data never leaves the machine.
 
-> 面向真实小企业运营者：把散在销量表、库存表、反馈表里的数据，变成一个能回答"为什么"和"下一步做什么"的智能体。
+> Built for real small-business operators: turn scattered sales, inventory, and feedback sheets into an agent that can answer "why" and "what next".
 
-## 快速开始
+## Built for Open Agent Hackathon 2026 — Track 02: "The Agent That Can Explain Why"
 
-无需 `pip install`，Python 3.8+：
+- **Impact**: answers questions that span multiple data sources with actionable, quantified recommendations.
+- **Technical**: deterministic, auditable reasoning pipeline; `eval.py` runs 8 reproducible assertions.
+- **Innovation**: every conclusion carries row-level citations (`file → row → fields → claim`), making agent output reviewable by a human in seconds.
+- **Demo**: one CLI command produces the full agent trace, conclusion, action, and an HTML report.
+
+## Quick Start
+
+No `pip install` needed. Python 3.8+:
 
 ```bash
 python -m decisionlens.cli \
   --sales examples/sales.csv \
   --inventory examples/inventory.csv \
   --feedback examples/feedback.csv \
-  --question "哪个 SKU 最该补货？为什么？" \
+  --question "Which SKU should I restock first, and why?" \
   --html report.html
 ```
 
-## 真实 demo 输出（示例数据）
+## Real Demo Output (bundled example data)
 
 ```
-[智能体轨迹]
-  · PERCEIVE 加载 3 个数据源：sales(9行)、inventory(3行)、feedback(9行)
-  · INDEX    发现跨源连接键：['sku']
-  · RETRIEVE 从 sales 取销量、inventory 取库存、feedback 取评价
-  · REASON   计算各 SKU 周均销量、库存可覆盖天数，判定 覆盖天数<交货期 或 库存<补货点 即为断货风险
-  · EXPLAIN  为 SKU-C 汇总销量/库存/反馈三类证据
-  · ACT      给出补货数量建议
+[AGENT TRACE]
+  - PERCEIVE loaded 3 sources: sales(9 rows), inventory(3 rows), feedback(9 rows)
+  - INDEX    found cross-source join keys: ['sku']
+  - RETRIEVE pulled sales velocity, stock on hand, and user feedback per SKU
+  - REASON   computed weekly velocity and days-of-cover; flags stockout risk when days-of-cover < lead time
+  - EXPLAIN  assembled 3 evidence types for SKU-C
+  - ACT      produced a quantified restock recommendation
 
-[结论]
-  最该立即补货的是 SKU-C：周销约 100 件，现有库存 90 仅够约 6.3 天，
-  而交货期要 14 天（覆盖天数<交货期=会断货）；用户反馈也印证（又断货了，赶紧补）。
+[CONCLUSION]
+  Restock SKU-C immediately: ~100 units/week sold, only 90 on hand (~6.3 days of cover)
+  vs a 14-day lead time (cover < lead time = stockout guaranteed); user feedback confirms
+  ("out of stock again, please restock").
 
-[行动]
-  立即为 SKU-C 下单补货，建议订 ≥ 300 件（覆盖 14 天交货期 + 一周安全库存），并上调其补货点。
+[ACTION]
+  Order >= 300 units of SKU-C now (covers the 14-day lead time + one week of safety stock)
+  and raise its reorder point.
 
-[证据引用]（共 18 条）
-  - sales 第8行 [week=2026-W38, units=140] → SKU-C 近期周销量约 140 件
-  - inventory 第3行 [on_hand=90, lead_time_days=14, reorder_point=120] → SKU-C 库存 90、交货期 14 天、补货点 120
-  - feedback 第9行 [rating=4.8, note=又断货了，赶紧补] → SKU-C 用户反馈：又断货了，赶紧补（评分 4.8）
+[EVIDENCE CITATIONS] (18 total)
+  - sales row 8 [week=2026-W38, units=140] -> SKU-C recent weekly sales ~140 units
+  - inventory row 3 [on_hand=90, lead_time_days=14, reorder_point=120] -> SKU-C: 90 on hand, 14-day lead time, reorder point 120
+  - feedback row 9 [rating=4.8, note=out of stock again, please restock] -> SKU-C user feedback: out of stock again (rating 4.8)
   ...
 ```
 
-## 智能体循环
+## The Agent Loop
 
-| 阶段 | 做什么 |
+| Stage | What it does |
 |---|---|
-| PERCEIVE 感知 | 加载各 CSV，自动推断数值列 |
-| INDEX 索引 | 发现跨源连接键（如 `sku`/`week`/`channel`） |
-| RETRIEVE 检索 | 按问题取回相关证据行 |
-| REASON 推理 | 运行分析（周均速度、覆盖天数、排名、相关性） |
-| EXPLAIN 解释 | 生成结论，每条判断挂到具体源+行 |
-| ACT 行动 | 给出可执行的下一步与量化依据 |
+| PERCEIVE | Loads each CSV, auto-infers numeric columns |
+| INDEX | Discovers cross-source join keys (e.g. `sku` / `week` / `channel`) |
+| RETRIEVE | Fetches the evidence rows relevant to the question |
+| REASON | Runs analysis (weekly velocity, days-of-cover, rankings, correlation) |
+| EXPLAIN | Generates the conclusion, attaching each judgment to a specific source + row |
+| ACT | Emits an executable next step with quantified backing |
 
-## 内置技能（按问题关键词路由）
+## Built-in Skills (routed by question keywords)
 
-- **断货/补货分析**：跨 sales+inventory(+feedback)，算周均销量、库存可覆盖天数，标出会断货的 SKU 并给补货量建议。
-- **渠道对比**：按营收排名各渠道，指出最该投入的方向。
-- **趋势归因**：对比指标首尾变化，给出增长/下滑判断与应对。
-- **概览**：汇总数据源，提示可问的问题。
+- **Stockout / restock analysis**: joins sales + inventory (+ feedback), computes weekly velocity and days-of-cover, flags SKUs that will stock out, and recommends restock quantities.
+- **Channel comparison**: ranks channels by revenue, points to where to invest.
+- **Trend attribution**: compares first vs. last periods, gives a growth/decline verdict and a response.
+- **Overview**: summarizes the sources and suggests questions to ask.
 
-## 作为库调用
+## Use as a Library
 
 ```python
 from decisionlens import DecisionLensAgent
@@ -73,33 +81,33 @@ agent = DecisionLensAgent().ingest({
     "inventory": "examples/inventory.csv",
     "feedback": "examples/feedback.csv",
 })
-d = agent.run("哪个 SKU 最该补货？为什么？")
+d = agent.run("Which SKU should I restock first, and why?")
 print(d.conclusion)
 print(d.action)
 for e in d.evidence:
     print(e.source, e.row, e.claim)
 ```
 
-## 数据格式
+## Data Format
 
-任意 CSV。列名按约定识别：销量 `units/qty/quantity`、营收 `revenue/amount`、
-库存 `on_hand/lead_time_days/reorder_point`、连接键如 `sku/week/channel`。
-数值列自动推断。
+Any CSV. Columns are recognized by convention: sales `units/qty/quantity`, revenue `revenue/amount`, inventory `on_hand/lead_time_days/reorder_point`, join keys like `sku/week/channel`. Numeric columns are inferred automatically.
 
-## 设计取舍
+## Design Trade-offs
 
-- **确定性推理、可解释优先**：不用黑箱模型，每一步都可复算、可追溯到源行——运营决策要能说清"为什么"。
-- **离线优先**：商业数据（销量/成本）最敏感，全程本地，不联网不上传。
-- **可扩展**：技能是独立方法，按问题关键词路由；加新技能=加一个 `_skill` 方法。
+- **Deterministic reasoning, explainability first**: no black-box model — every step is recomputable and traceable to a source row, because operational decisions must be able to say "why".
+- **Offline first**: business data (sales, costs) is the most sensitive data there is; everything runs locally, nothing is uploaded.
+- **Extensible**: skills are independent methods routed by question keywords; adding a skill = adding one `_skill_*` method.
 
-## 适用场景
+## Use Cases
 
-小店主的每周经营问答、代运营的数据归因、教学里的"可解释 AI + 多源检索"最小样例。
+Weekly business Q&A for small shop owners, data attribution for agency operators, and a minimal teaching example of "explainable AI + multi-source retrieval".
 
-## 免责声明
+## Disclaimer
 
-DecisionLens 的结论基于所提供数据，仅供辅助决策，重大经营决策请人工复核。
+DecisionLens conclusions are based on the provided data and are decision support only. Please review important business decisions manually.
 
 ## License
 
 MIT · [github.com/Zhiyilang/decisionlens](https://github.com/Zhiyilang/decisionlens)
+
+中文说明见 [README.zh.md](README.zh.md)。
